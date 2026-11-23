@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monthly Consolidator</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2430;--mut:#667085;--line:#e3e6ec;--acc:#1f4e78;--acc2:#2f6fa8;--ok:#1a7f4b;--warn:#b26a00;--err:#c0392b;--hl:#eaf2fb}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1a2029;--ink:#e6e9ef;--mut:#8b95a5;--line:#2a3340;--acc:#5b9bd5;--acc2:#7db4e6;--ok:#4cc38a;--warn:#e0a030;--err:#ef6b5b;--hl:#1f2c3b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,sans-serif}
+header{padding:16px 24px;border-bottom:1px solid var(--line);background:var(--card)}
+header h1{margin:0;font-size:18px} header p{margin:2px 0 0;color:var(--mut)}
+main{display:grid;grid-template-columns:minmax(340px,430px) 1fr;gap:16px;padding:16px 24px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:16px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.card h2{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+input[type=text],input[type=number],select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}.row>button{flex:none}
+button{padding:7px 13px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0;color:var(--ink);font-size:13px}
+.chk input{margin-top:3px}.chk small{display:block;color:var(--mut)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+details summary{cursor:pointer;color:var(--acc);margin:8px 0}
+.tree ul{list-style:none;margin:0;padding-left:18px}.tree>ul{padding-left:0}
+.tree .m{font-weight:600;margin-top:6px}
+.tree .t{color:var(--mut);margin-top:2px}
+.tree .f{padding:1px 4px;border-radius:4px;cursor:pointer;color:var(--ink);font-size:13px;word-break:break-all}
+.tree .f:hover,.tree .f.sel{background:var(--hl)}
+.tree .more{color:var(--mut);padding-left:4px;cursor:pointer}
+.pill{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 7px;color:var(--mut);margin-left:6px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+#log{background:var(--bg);border:1px solid var(--line);border-radius:6px;height:230px;overflow:auto;padding:8px;font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
+.OK{color:var(--ok)}.WARN{color:var(--warn)}.ERROR{color:var(--err)}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{border:1px solid var(--line);padding:3px 7px;text-align:left;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+th{background:var(--hl)}
+.scroll{overflow:auto}
+.tbl{margin:10px 0 16px}.tbl h4{margin:0 0 4px;font-size:13px}
+.note{color:var(--mut);font-size:12px}
+.out a{color:var(--acc2)}
+.out div{padding:6px 0;border-bottom:1px solid var(--line)}
+.issue{font-size:12px;padding:2px 0}
+.modal{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;z-index:9}
+.modal.on{display:flex}.modal .box{background:var(--card);border-radius:10px;padding:16px;width:min(560px,92vw);max-height:80vh;display:flex;flex-direction:column}
+.modal ul{list-style:none;margin:8px 0;padding:0;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.modal li{padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--line)}.modal li:hover{background:var(--hl)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Monthly Consolidator</h1>
+  <p>Root folder &rarr; month folders &rarr; data-type folders &rarr; many workbooks. Consolidates every sheet across all files of a data type, one workbook per month.</p>
+</header>
+<main>
+<section>
+  <div class="card">
+    <h2>1 · Source</h2>
+    <label>Root folder (contains the month folders)</label>
+    <div class="row"><input type="text" id="root" placeholder="C:\Data\Reports"><button id="browse">Browse…</button></div>
+    <label>Output folder (blank = &lt;root&gt;\_consolidated)</label>
+    <input type="text" id="out" placeholder="">
+    <div class="row" style="margin-top:10px"><button class="pri" id="scan">Scan folders</button></div>
+    <div id="scanmsg" class="note" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Options</h2>
+    <label>Multiple tables on one sheet</label>
+    <select id="multi_table_layout">
+      <option value="separate">Separate output sheets (Sheet - T1, Sheet - T2)</option>
+      <option value="stacked">Stacked in one sheet (titled blocks)</option>
+    </select>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" id="per_type_files"><span>One workbook per month <b>and</b> data type<small>Default: one workbook per month, sheets prefixed with the data type</small></span></label>
+    <label class="chk"><input type="checkbox" id="add_source_file" checked><span>Add “Source File” column</span></label>
+    <label class="chk"><input type="checkbox" id="add_source_row"><span>Add “Source Row” column (Excel row of origin)</span></label>
+    <label class="chk"><input type="checkbox" id="skip_totals" checked><span>Drop Total / Subtotal / Grand total rows<small>Recommended — totals would double-count when consolidated</small></span></label>
+    <label class="chk"><input type="checkbox" id="skip_hidden_sheets"><span>Skip hidden sheets</span></label>
+    <details><summary>Detection tuning</summary>
+      <div class="grid2">
+        <div><label>Blank rows that split tables</label><input type="number" id="row_gap" value="1" min="1"></div>
+        <div><label>Blank columns that split tables</label><input type="number" id="col_gap" value="1" min="1"></div>
+        <div><label>Header match threshold (0–1)</label><input type="number" id="match_threshold" value="0.5" min="0.1" max="1" step="0.05"></div>
+        <div><label>Min data rows per table</label><input type="number" id="min_data_rows" value="1" min="1"></div>
+      </div>
+      <p class="note">Raise “blank rows” to 2 if tables are separated by wider gaps or your tables contain stray blank lines. Lower the match threshold if headers change slightly between files.</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>3 · Months &amp; files</h2>
+    <div class="note" id="treehint">Scan a root folder first. Click a file to preview how its tables are detected.</div>
+    <div class="row" id="selrow" style="display:none;margin:6px 0"><button id="selall">All</button><button id="selnone">None</button></div>
+    <div class="tree" id="tree"></div>
+    <button class="pri" id="run" style="margin-top:12px;width:100%" disabled>Consolidate selected months</button>
+  </div>
+</section>
+
+<section>
+  <div class="card" id="progcard" style="display:none">
+    <h2>Progress</h2>
+    <div class="row"><span id="progtxt">&nbsp;</span><button id="cancel" style="flex:none">Cancel</button></div>
+    <div class="bar"><i id="barfill"></i></div>
+    <div id="log"></div>
+  </div>
+  <div class="card" id="outcard" style="display:none">
+    <h2>Results</h2>
+    <div id="outputs" class="out"></div>
+    <button id="openf" style="margin-top:10px">Open output folder</button>
+    <div id="issues" style="margin-top:10px"></div>
+  </div>
+  <div class="card" id="prevcard">
+    <h2>Table detection preview</h2>
+    <div id="preview" class="note">Select a file in the tree to see the sheets and tables detected in it (header row, range, sample rows).</div>
+  </div>
+</section>
+</main>
+
+<div class="modal" id="modal"><div class="box">
+  <div class="row"><b id="mpath" style="word-break:break-all"></b></div>
+  <ul id="mlist"></ul>
+  <div class="row" style="justify-content:flex-end"><button id="mcancel" style="flex:none">Cancel</button><button class="pri" id="mok" style="flex:none">Use this folder</button></div>
+</div></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const OPT_BOOL=['per_type_files','add_source_file','add_source_row','skip_totals','skip_hidden_sheets'];
+const OPT_NUM=['row_gap','col_gap','match_threshold','min_data_rows'];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function options(){
+  const o={multi_table_layout:$('#multi_table_layout').value};
+  OPT_BOOL.forEach(k=>o[k]=$('#'+k).checked);
+  OPT_NUM.forEach(k=>o[k]=Number($('#'+k).value));
+  return o;
+}
+async function api(url,body){
+  const r=await fetch(url,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json(); if(!r.ok) throw new Error(j.error||r.statusText); return j;
+}
+try{const s=JSON.parse(localStorage.getItem('cz')||'{}'); if(s.root)$('#root').value=s.root; if(s.out)$('#out').value=s.out;}catch(e){}
+const save=()=>{try{localStorage.setItem('cz',JSON.stringify({root:$('#root').value,out:$('#out').value}))}catch(e){}};
+
+// folder picker
+let pickTarget=null,pickPath='';
+async function loadDir(p){
+  try{const d=await api('/api/browse?path='+encodeURIComponent(p));
+    pickPath=d.path;$('#mpath').textContent=d.path||'Drives';
+    $('#mlist').innerHTML=(d.parent!==null?`<li data-p="${esc(d.parent)}">⬑ ..</li>`:'')+d.dirs.map(x=>`<li data-p="${esc(x.path)}">📁 ${esc(x.name)}</li>`).join('');
+  }catch(e){$('#mpath').textContent=e.message}
+}
+$('#mlist').onclick=e=>{const li=e.target.closest('li');if(li)loadDir(li.dataset.p)};
+$('#browse').onclick=()=>{pickTarget='#root';$('#modal').classList.add('on');loadDir($('#root').value)};
+$('#mcancel').onclick=()=>$('#modal').classList.remove('on');
+$('#mok').onclick=()=>{if(pickPath)$(pickTarget).value=pickPath;$('#modal').classList.remove('on');save()};
+
+// scan + tree
+let MONTHS=[];
+$('#scan').onclick=async()=>{
+  save();$('#scanmsg').textContent='Scanning…';
+  try{const d=await api('/api/scan',{root:$('#root').value,options:options()});
+    MONTHS=d.months;renderTree();
+    const nf=MONTHS.reduce((a,m)=>a+m.types.reduce((b,t)=>b+t.files.length,0),0);
+    $('#scanmsg').textContent=`${MONTHS.length} month folder(s), ${nf} file(s).`;
+  }catch(e){$('#scanmsg').textContent=e.message;MONTHS=[];renderTree()}
+};
+function renderTree(){
+  $('#tree').innerHTML='<ul>'+MONTHS.map((m,mi)=>`<li><div class="m"><label class="chk" style="margin:0"><input type="checkbox" class="mchk" data-m="${esc(m.name)}" checked><span>${esc(m.name)}</span></label></div><ul>`+
+    m.types.map((t,ti)=>`<li class="t">${esc(t.name)}<span class="pill">${t.files.length} files</span><ul>`+
+      t.files.slice(0,8).map(f=>`<li class="f" data-f="${esc(f)}">${esc(f.split(/[\\/]/).pop())}</li>`).join('')+
+      (t.files.length>8?`<li class="more" data-mi="${mi}" data-ti="${ti}">+ ${t.files.length-8} more…</li>`:'')+
+    '</ul></li>').join('')+'</ul></li>').join('')+'</ul>';
+  $('#selrow').style.display=MONTHS.length?'flex':'none';
+  $('#run').disabled=!MONTHS.length;
+  $('#treehint').style.display=MONTHS.length?'none':'block';
+}
+$('#tree').onclick=async e=>{
+  const more=e.target.closest('.more');
+  if(more){const t=MONTHS[+more.dataset.mi].types[+more.dataset.ti];
+    more.outerHTML=t.files.slice(8).map(f=>`<li class="f" data-f="${esc(f)}">${esc(f.split(/[\\/]/).pop())}</li>`).join('');return;}
+  const f=e.target.closest('.f'); if(!f)return;
+  document.querySelectorAll('.f.sel').forEach(x=>x.classList.remove('sel'));f.classList.add('sel');
+  $('#preview').innerHTML='Analysing…';
+  try{const d=await api('/api/preview',{path:f.dataset.f,options:options()});renderPreview(d)}catch(err){$('#preview').textContent=err.message}
+};
+$('#selall').onclick=()=>document.querySelectorAll('.mchk').forEach(c=>c.checked=true);
+$('#selnone').onclick=()=>document.querySelectorAll('.mchk').forEach(c=>c.checked=false);
+
+function renderPreview(d){
+  let h=`<b>${esc(d.file)}</b> — ${d.sheets.length} sheet(s)`;
+  d.sheets.forEach(s=>{
+    h+=`<h3 style="margin:14px 0 2px">${esc(s.sheet)}${s.hidden?' <span class="pill">hidden</span>':''} <span class="note">${esc(s.dims)}</span></h3>`;
+    if(!s.tables.length)h+='<div class="note">No table detected.</div>';
+    s.tables.forEach((t,i)=>{
+      h+=`<div class="tbl"><h4>T${i+1} · ${esc(t.ref)} · ${t.n_rows} rows${t.title?' · “'+esc(t.title)+'”':''}</h4><div class="scroll"><table><tr>${t.columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>`+
+        t.sample.map(r=>'<tr>'+r.map(v=>`<td>${esc(v)}</td>`).join('')+'</tr>').join('')+'</table></div></div>';
+    });
+    s.notes.forEach(n=>h+=`<div class="note">• ${esc(n)}</div>`);
+  });
+  $('#preview').innerHTML=h;
+}
+
+// run
+let JOB=null,OUTDIR='';
+$('#run').onclick=async()=>{
+  const months=[...document.querySelectorAll('.mchk:checked')].map(c=>c.dataset.m);
+  if(!months.length){alert('Select at least one month');return}
+  save();$('#log').innerHTML='';$('#outcard').style.display='none';$('#progcard').style.display='block';
+  $('#run').disabled=true;
+  try{const r=await api('/api/run',{root:$('#root').value,out:$('#out').value,months,options:options()});JOB=r.job;poll(0)}
+  catch(e){$('#log').textContent=e.message;$('#run').disabled=false}
+};
+$('#cancel').onclick=()=>JOB&&api('/api/cancel/'+JOB,{});
+async function poll(since){
+  const j=await api(`/api/job/${JOB}?since=${since}`);
+  const lg=$('#log');
+  j.log.forEach(l=>{lg.insertAdjacentHTML('beforeend',`<div class="${esc(l.level)}">${esc(l.t)}  ${esc(l.msg)}</div>`)});
+  if(j.log.length)lg.scrollTop=lg.scrollHeight;
+  const pct=j.total?Math.round(100*j.done/j.total):0;
+  $('#barfill').style.width=pct+'%';$('#progtxt').textContent=`${j.status} — ${j.done}/${j.total} files`;
+  if(j.status==='running'){setTimeout(()=>poll(j.next),600);return}
+  $('#run').disabled=false;
+  if(j.result){OUTDIR=j.out;showResult(j.result)}
+}
+function showResult(r){
+  $('#outcard').style.display='block';
+  $('#outputs').innerHTML=r.months.map(m=>m.outputs.map(o=>`<div><a href="/download?path=${encodeURIComponent(o.path)}">${esc(o.path.split(/[\\/]/).pop())}</a> <span class="note">· ${o.sheets} consolidated tables · ${o.rows.toLocaleString()} rows</span></div>`).join('')).join('');
+  const iss=r.months.flatMap(m=>m.issues.map(i=>({...i,month:m.month})));
+  $('#issues').innerHTML=iss.length?`<b>${iss.length} warning(s)</b>`+iss.slice(0,60).map(i=>`<div class="issue ${i.level}">${esc(i.month)} · ${esc(i.type)} · ${esc(i.where)}: ${esc(i.msg)}</div>`).join('')+(iss.length>60?'<div class="note">…more in each workbook’s _Log sheet</div>':''):'<div class="note">No warnings.</div>';
+}
+$('#openf').onclick=()=>api('/api/open-folder',{path:OUTDIR}).catch(e=>alert(e.message));
+</script>
+</body>
+</html>
